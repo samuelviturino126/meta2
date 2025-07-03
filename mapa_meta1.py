@@ -7,13 +7,16 @@ import matplotlib.path as mplPath
 # Conecta ao CoppeliaSim
 client = RemoteAPIClient()
 sim = client.getObject('sim')
-map_reso = 0.05  #Defino em 5cm quadrados por célula
-#vetor de rotação (para rotacionar os objetos pelo angulo)
+map_reso = 0.05  # Defino em 5cm quadrados por célula
+# vetor de rotação (para rotacionar os objetos pelo angulo)
+
+
 def rotatedVec2d(vec_in, angle):
     return [
         math.cos(angle) * vec_in[0] - math.sin(angle) * vec_in[1],
         math.sin(angle) * vec_in[0] + math.cos(angle) * vec_in[1]
     ]
+
 
 def get_rectangle_vertices(sim, handle):
     """Retorna os 4 vértices do objeto como [(x1, y1), ..., (x4, y4)]"""
@@ -21,7 +24,8 @@ def get_rectangle_vertices(sim, handle):
     largura, altura = sizes[0], sizes[1]
 
     # vértices relativos ao centro
-    vertices_rel = [[x/2, y/2] for y in [altura, -altura] for x in [largura, -largura]]
+    vertices_rel = [[x/2, y/2] for y in [altura, -altura]
+                    for x in [largura, -largura]]
     vertices_rel[1:] = vertices_rel[2:] + [vertices_rel[1]]  # reordenamento
 
     pos = sim.getObjectPosition(handle)
@@ -29,7 +33,8 @@ def get_rectangle_vertices(sim, handle):
     vertices_abs = [rotatedVec2d(v, gamma) for v in vertices_rel]
     return [[v[0] + pos[0], v[1] + pos[1]] for v in vertices_abs]
 
-#agora obtemos o mapa baseado no Floor
+
+# agora obtemos o mapa baseado no Floor
 # Obtém vértices do chão
 floor_handle = sim.getObject('/Floor')
 vertices_floor = get_rectangle_vertices(sim, floor_handle)
@@ -40,9 +45,9 @@ map_x_min, map_x_max = min(xs), max(xs)
 map_y_min, map_y_max = min(ys), max(ys)
 
 map_larg = map_x_max - map_x_min
-map_alt  = map_y_max - map_y_min
+map_alt = map_y_max - map_y_min
 
-#agora vou ignorar o Chão, para plotar o mapa apenas com os obstáculos destacados e o Pionner sendo um deles
+# agora vou ignorar o Chão, para plotar o mapa apenas com os obstáculos destacados e o Pionner sendo um deles
 
 # Handles a serem ignorados (algum que quisermos utilizar como o próprio robo nos campos potenciais no futuro e piso)
 nomes_a_ignorar = ['/Floor']
@@ -52,7 +57,8 @@ for nome in nomes_a_ignorar:
     handles_ignorados.append(h)
 
 # Coleta todos os objetos do tipo SHAPE
-todos_objetos = sim.getObjectsInTree(sim.handle_scene, sim.sceneobject_shape, 0b00000010)
+todos_objetos = sim.getObjectsInTree(
+    sim.handle_scene, sim.sceneobject_shape, 0b00000010)
 
 # Remove os objetos ignorados
 obstaculos = [h for h in todos_objetos if h not in handles_ignorados]
@@ -60,11 +66,13 @@ obstaculos = [h for h in todos_objetos if h not in handles_ignorados]
 # Cria matriz do C-Space: linhas = largura, colunas = altura
 c_space = np.zeros((int(map_larg / map_reso), int(map_alt / map_reso)))
 
+
 def ponto_para_indice(x, y):
     """Converte coordenadas do mundo real para índices da matriz c_space"""
     i = int((x - map_x_min) / map_reso)
     j = int((y - map_y_min) / map_reso)
     return i, j
+
 
 def marcar_obstaculo_na_matriz(c_space, vertices):
     """Marca na matriz as células ocupadas pelo polígono definido pelos vértices"""
@@ -92,15 +100,16 @@ def marcar_obstaculo_na_matriz(c_space, vertices):
             if path.contains_point((x, y)):
                 c_space[i, j] = 1
 
-#marcamos os obstaculos na matriz
+
+# marcamos os obstaculos na matriz
 for obs_handle in obstaculos:
     vertices = get_rectangle_vertices(sim, obs_handle)
     marcar_obstaculo_na_matriz(c_space, vertices)
 
 
 # Mostra matriz do C-Space original (sem inflar)
-plt.figure(figsize=(8,8))
-plt.subplot(1,2,1)
+plt.figure(figsize=(8, 8))
+plt.subplot(1, 2, 1)
 plt.imshow(c_space.T, origin='lower', cmap='gray_r')
 plt.title("C-Space")
 plt.xlabel("Índice X")

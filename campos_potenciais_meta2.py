@@ -13,11 +13,13 @@ map_reso = 0.125
 client = RemoteAPIClient()
 sim = client.getObject('sim')
 
+
 def rotatedVec2d(vec_in, angle):
     return [
         math.cos(angle) * vec_in[0] - math.sin(angle) * vec_in[1],
         math.sin(angle) * vec_in[0] + math.cos(angle) * vec_in[1]
     ]
+
 
 def get_rectangle_vertices(sim, handle):
     sizes, _ = sim.getShapeBB(handle)
@@ -34,10 +36,12 @@ def get_rectangle_vertices(sim, handle):
     vertices_abs = [rotatedVec2d(v, gamma) for v in vertices_rel]
     return [[v[0] + pos[0], v[1] + pos[1]] for v in vertices_abs]
 
+
 def coord_para_indice(x_p, y_p, map_x_min, map_y_min, map_reso):
     i = int((x_p - map_x_min) / map_reso)
     j = int((y_p - map_y_min) / map_reso)
     return i, j
+
 
 def marcar_obstaculo_na_matriz(c_space, vertices, map_x_min, map_y_min, map_reso):
     path = mplPath.Path(vertices)
@@ -45,8 +49,10 @@ def marcar_obstaculo_na_matriz(c_space, vertices, map_x_min, map_y_min, map_reso
     min_x, max_x = min(xs), max(xs)
     min_y, max_y = min(ys), max(ys)
 
-    i_min, j_min = coord_para_indice(min_x, min_y, map_x_min, map_y_min, map_reso)
-    i_max, j_max = coord_para_indice(max_x, max_y, map_x_min, map_y_min, map_reso)
+    i_min, j_min = coord_para_indice(
+        min_x, min_y, map_x_min, map_y_min, map_reso)
+    i_max, j_max = coord_para_indice(
+        max_x, max_y, map_x_min, map_y_min, map_reso)
 
     i_min = max(i_min, 0)
     j_min = max(j_min, 0)
@@ -60,6 +66,7 @@ def marcar_obstaculo_na_matriz(c_space, vertices, map_x_min, map_y_min, map_reso
             if path.contains_point((x, y)):
                 c_space[j, i] = -999
 
+
 handle_robo = sim.getObjectHandle('/PioneerP3DX')
 pos_robo = sim.getObjectPosition(handle_robo)
 floor_handle = sim.getObject('/Floor')
@@ -68,7 +75,7 @@ xs, ys = zip(*vertices_floor)
 map_x_min, map_x_max = min(xs), max(xs)
 map_y_min, map_y_max = min(ys), max(ys)
 map_larg = map_x_max - map_x_min
-map_alt  = map_y_max - map_y_min
+map_alt = map_y_max - map_y_min
 n_larg = int(map_larg / map_reso)
 n_alt = int(map_alt / map_reso)
 c_space = np.full((n_alt, n_larg), 999)
@@ -82,7 +89,8 @@ for nome in nomes_a_ignorar:
     except Exception:
         print(f"Aviso: objeto '{nome}' não encontrado.")
 
-todos_objetos = sim.getObjectsInTree(sim.handle_scene, sim.sceneobject_shape, 0b00000010)
+todos_objetos = sim.getObjectsInTree(
+    sim.handle_scene, sim.sceneobject_shape, 0b00000010)
 obstaculos = [h for h in todos_objetos if h not in handles_ignorados]
 print("Obstáculos no cenário (ignorando PioneerP3DX e Floor):")
 for shape in obstaculos:
@@ -91,13 +99,38 @@ for shape in obstaculos:
 
 for obj_handle in obstaculos:
     vertices_obj = get_rectangle_vertices(sim, obj_handle)
-    marcar_obstaculo_na_matriz(c_space, vertices_obj, map_x_min, map_y_min, map_reso)
+    marcar_obstaculo_na_matriz(
+        c_space, vertices_obj, map_x_min, map_y_min, map_reso)
+
+
+def marcar_zona_de_segurança(c_space, raio=2):
+    zonas = []
+
+    for j in range(c_space.shape[0]):
+        for i in range(c_space.shape[1]):
+            if c_space[j, i] == -999:  # obstáculo
+                for dj in range(-raio, raio+1):
+                    for di in range(-raio, raio+1):
+                        if dj == 0 and di == 0:
+                            continue
+                        nj = j + dj
+                        ni = i + di
+                        if 0 <= nj < c_space.shape[0] and 0 <= ni < c_space.shape[1]:
+                            if c_space[nj, ni] == 999:
+                                zonas.append((nj, ni))
+
+    for (j, i) in zonas:
+        c_space[j, i] = -998  # zona de segurança
+
+
+marcar_zona_de_segurança(c_space, raio=2)
 
 try:
     goal_handle = sim.getObject('/Goal')
     pos_goal = sim.getObjectPosition(goal_handle)
     x_goal, y_goal = pos_goal[0], pos_goal[1]
-    i_goal, j_goal = coord_para_indice(x_goal, y_goal, map_x_min, map_y_min, map_reso)
+    i_goal, j_goal = coord_para_indice(
+        x_goal, y_goal, map_x_min, map_y_min, map_reso)
     if 0 <= j_goal < c_space.shape[0] and 0 <= i_goal < c_space.shape[1]:
         c_space[j_goal, i_goal] = 0
         print(f"Goal marcado em: ({i_goal}, {j_goal})")
@@ -105,6 +138,7 @@ try:
         print("Posição do Goal está fora dos limites do mapa.")
 except Exception as e:
     print(f"Erro ao localizar /Goal: {e}")
+
 
 def propagar_potencial_manhattan(c_space, i_goal, j_goal):
     fila = deque()
@@ -126,11 +160,13 @@ def propagar_potencial_manhattan(c_space, i_goal, j_goal):
                     fila.append((j_viz, i_viz))
                     visitados.add((j_viz, i_viz))
 
+
 propagar_potencial_manhattan(c_space, i_goal, j_goal)
 
 
 x_robo, y_robo = pos_robo[0], pos_robo[1]
-i_start, j_start = coord_para_indice(x_robo, y_robo, map_x_min, map_y_min, map_reso)
+i_start, j_start = coord_para_indice(
+    x_robo, y_robo, map_x_min, map_y_min, map_reso)
 
 if 0 <= j_start < c_space.shape[0] and 0 <= i_start < c_space.shape[1]:
     start = (j_start, i_start)
@@ -144,6 +180,7 @@ if 0 <= j_start < c_space.shape[0] and 0 <= i_start < c_space.shape[1]:
 else:
     print("Posição inicial do robô está fora dos limites do mapa.")
 
+
 def plot_cspace(c_space, map_reso, caminho=None):
     fig, ax = plt.subplots(figsize=(10, 10))
     n_linhas, n_colunas = c_space.shape
@@ -152,7 +189,8 @@ def plot_cspace(c_space, map_reso, caminho=None):
     for i in range(n_linhas):
         for j in range(n_colunas):
             valor = c_space[i, j]
-            ax.text(j, i, f'{valor}', ha='center', va='center', color='black', fontsize=6)
+            ax.text(j, i, f'{valor}', ha='center',
+                    va='center', color='black', fontsize=6)
 
     ax.set_xticks(np.arange(-0.5, n_colunas, 1), minor=True)
     ax.set_yticks(np.arange(-0.5, n_linhas, 1), minor=True)
@@ -174,5 +212,5 @@ def plot_cspace(c_space, map_reso, caminho=None):
     plt.ylabel('Índice Y (linha)')
     plt.show()
 
-plot_cspace(c_space, map_reso, caminho=caminho)
 
+plot_cspace(c_space, map_reso, caminho=caminho)

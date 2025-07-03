@@ -6,11 +6,13 @@ import matplotlib.path as mplPath
 from collections import deque
 import time
 
+
 def gerador_de_caminhos(U, start, goal):
     caminho = []
     atual = start
 
-    vizinhos = [(-1, 0), (1, 0), (0, -1), (0, 1)]  # cima, baixo, esquerda, direita
+    # cima, baixo, esquerda, direita
+    vizinhos = [(0, 1), (1, 0), (0, -1), (-1, 0)]
 
     while atual != goal:
         i, j = atual
@@ -25,7 +27,6 @@ def gerador_de_caminhos(U, start, goal):
                     menor = U[ni, nj]
                     proximo = (ni, nj)
 
-        # Fora do for: se nenhum vizinho válido foi encontrado
         if proximo is None:
             print("Caminho Bloqueado.")
             return []
@@ -35,7 +36,3 @@ def gerador_de_caminhos(U, start, goal):
         atual = proximo
 
     return caminho
-
-
-
-
